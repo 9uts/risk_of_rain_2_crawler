@@ -1,22 +1,23 @@
 package com.guts.risk_of_rain_2_crawler.entity;
 
+import lombok.Data;
+import lombok.ToString;
+import lombok.experimental.Accessors;
+import org.springframework.data.annotation.Id;
+
 /**
  * @author Created by yitian.luo on 2022/1/13.
  */
+@Data
+@ToString
+@Accessors(chain = true)
 public class RiskOfRainItem {
-    private String name;
-    private String description;
+    @Id
+    private final String name;
+    private final String description;
 
     public RiskOfRainItem(String name, String description) {
         this.name = name;
         this.description = description;
-    }
-
-    public String getName() {
-        return name;
-    }
-
-    public String getDescription() {
-        return description;
     }
 }

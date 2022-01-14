@@ -14,6 +14,11 @@ import org.slf4j.LoggerFactory;
  * @author Created by yitian.luo on 2022/1/13.
  */
 public class HttpUtil {
+    
+    private HttpUtil() {
+        throw new IllegalStateException("Util class");
+    }
+
     private static final Logger LOGGER = LoggerFactory.getLogger(HttpUtil.class);
 
     public static String getHtml(String urlString) {
@@ -36,15 +41,7 @@ public class HttpUtil {
         private RiskOfRainUrl() {
             throw new IllegalStateException("Finial class : " + RiskOfRainUrl.class);
         }
-        public static final String BASE = "https://mzh.moegirl.org.cn/%E9%9B%A8%E4%B8%AD%E5%86%92%E9%99%A92";
-        public static final String ITEMS = "/%E7%89%A9%E5%93%81";
+        public static final String ITEM_LIST_URL = "https://riskofrain2.fandom.com/wiki/Items";
 
-        public static String getUrl(String endpoint) {
-            return BASE + endpoint;
-        }
-    }
-
-    public static void main(String[] args) {
-        HttpUtil.getHtml(RiskOfRainUrl.BASE + RiskOfRainUrl.ITEMS);
     }
 }
