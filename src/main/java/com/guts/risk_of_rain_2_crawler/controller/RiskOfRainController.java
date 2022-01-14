@@ -24,13 +24,16 @@ public class RiskOfRainController {
     @GetMapping("/items")
     public String getDescriptionsWhichContains(String name) {
         List<RiskOfRainItem> items = rorService.findItemByNameIfContains(name);
+        StringBuilder builder = new StringBuilder("道具"+name+"搜索结果:\n");
         if (items.isEmpty()) {
-            return "Item not found.";
+            return "未搜索到道具。";
         }
-        StringBuilder builder = new StringBuilder("------------------\n");
+        builder.append("------------------\n");
         for (RiskOfRainItem item : items) {
             builder.append("道具名称: ")
                     .append(item.getName())
+                    .append("\n> ")
+                    .append(item.getDescriptionCh())
                     .append("\n> ")
                     .append(item.getDescription())
                     .append("\n------------------\n");

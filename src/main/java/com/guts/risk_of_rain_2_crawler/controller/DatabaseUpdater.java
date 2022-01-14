@@ -6,12 +6,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
-import org.springframework.stereotype.Component;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 /**
  * @author Created by yitian.luo on 2022/1/14.
  */
-@Component
+@RestController
 public class DatabaseUpdater {
     @Autowired
     private RiskOfRainService rorService;
@@ -21,5 +22,10 @@ public class DatabaseUpdater {
     @Scheduled(cron = "0 0 6 * * ?")
     public void updateDatabase() {
         LOGGER.info("Update {} item(s) at {}", rorService.updateRorDb().size(), new Date());
+    }
+
+    @PostMapping("/gameDb/update")
+    public String updateGameDb() {
+        return "Update " + rorService.updateRorDb().size() + " item(s) at " + new Date();
     }
 }

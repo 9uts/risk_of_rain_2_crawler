@@ -15,6 +15,7 @@ public class RiskOfRainItem {
     @Id
     private final String name;
     private final String description;
+    private String descriptionCh;
 
     public RiskOfRainItem(String name, String description) {
         this.name = name;

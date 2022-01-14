@@ -1,10 +1,19 @@
 package com.guts.risk_of_rain_2_crawler.dao;
 
+import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.JSONArray;
+import com.alibaba.fastjson.JSONObject;
 import com.guts.risk_of_rain_2_crawler.entity.RiskOfRainItem;
 import com.guts.risk_of_rain_2_crawler.util.HttpUtil;
 import com.guts.risk_of_rain_2_crawler.util.HttpUtil.RiskOfRainUrl;
+import com.guts.risk_of_rain_2_crawler.util.HttpUtil.TranslateUrl;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Pattern;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
@@ -31,7 +40,7 @@ public class RiskOfRainItemMapper {
     private MongoTemplate rorTemplate;
 
     public List<RiskOfRainItem> getFullItemsFromWiki() {
-        String moeItemsHtml = HttpUtil.getHtml(RiskOfRainUrl.ITEM_LIST_URL);
+        String moeItemsHtml = HttpUtil.httpGet(RiskOfRainUrl.ITEM_LIST_URL);
         if (moeItemsHtml.isEmpty()) {
             LOGGER.info("Risk of rain items pages missing");
             return new LinkedList<>();
@@ -59,6 +68,8 @@ public class RiskOfRainItemMapper {
     }
 
     public List<RiskOfRainItem> updateAllItem(List<RiskOfRainItem> items) {
+        // 翻译产生中文版描述
+        translateEachItem(items);
         for (RiskOfRainItem item : items) {
             updateItem(item);
         }
@@ -88,5 +99,68 @@ public class RiskOfRainItemMapper {
             Query query = new Query(criteria);
             LOGGER.info("Delete {}: {}", item.getName(), rorTemplate.remove(query, ROR_COLLECTION).getDeletedCount() != 0);
         });
+    }
+
+    public static void main(String[] args) {
+        RiskOfRainItemMapper rorMapper = new RiskOfRainItemMapper();
+        rorMapper.translateEachItem(rorMapper.getFullItemsFromWiki());
+    }
+
+    public void translateEachItem(List<RiskOfRainItem> items) {
+        items.forEach(item -> {
+            String q = item.getDescription();
+            String salt = String.valueOf(System.currentTimeMillis());
+            Map<String, String> params = new HashMap<>();
+            params.put("from", "EN");
+            params.put("to", "CH");
+            params.put("signType", "v3");
+            String curtime = String.valueOf(System.currentTimeMillis() / 1000);
+            params.put("curtime", curtime);
+            String signStr = TranslateUrl.APP_ID + truncate(q) + salt + curtime + TranslateUrl.APP_SECRET;
+            String sign = getDigest(signStr);
+            params.put("appKey", TranslateUrl.APP_ID);
+            params.put("q", q);
+            params.put("salt", salt);
+            params.put("sign", sign);
+            JSONObject responseBody = JSON.parseObject(HttpUtil.httpPost(TranslateUrl.TRANSLATE_URL, params));
+            JSONArray translationArray = responseBody.getJSONArray("translation");
+            if (translationArray.size() == 1) {
+                item.setDescriptionCh(translationArray.getString(0));
+                LOGGER.info("Translate {} success, chinese description: {}", item.getName(), item.getDescriptionCh());
+            } else {
+                LOGGER.info("Translate {} error: {}", item.getName(), item.getDescription());
+            }
+        });
+    }
+
+    private static String truncate(String q) {
+        if (q == null) {
+            return null;
+        }
+        int len = q.length();
+        return len <= 20 ? q : (q.substring(0, 10) + len + q.substring(len - 10, len));
+    }
+
+    private static String getDigest(String string) {
+        if (string == null) {
+            return null;
+        }
+        char[] hexDigits = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'};
+        byte[] btInput = string.getBytes(StandardCharsets.UTF_8);
+        try {
+            MessageDigest mdInst = MessageDigest.getInstance("SHA-256");
+            mdInst.update(btInput);
+            byte[] md = mdInst.digest();
+            int j = md.length;
+            char[] str = new char[j * 2];
+            int k = 0;
+            for (byte byte0 : md) {
+                str[k++] = hexDigits[byte0 >>> 4 & 0xf];
+                str[k++] = hexDigits[byte0 & 0xf];
+            }
+            return new String(str);
+        } catch (NoSuchAlgorithmException e) {
+            return null;
+        }
     }
 }
