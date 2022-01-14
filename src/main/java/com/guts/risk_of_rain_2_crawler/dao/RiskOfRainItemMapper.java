@@ -108,6 +108,10 @@ public class RiskOfRainItemMapper {
 
     public void translateEachItem(List<RiskOfRainItem> items) {
         items.forEach(item -> {
+            RiskOfRainItem itemInGameDb = rorTemplate.findById(item.getName(), RiskOfRainItem.class, ROR_COLLECTION);
+            if ( itemInGameDb == null || itemInGameDb.getDescriptionCh() == null || itemInGameDb.getDescriptionCh().length() == 0) {
+                return;
+            }
             String q = item.getDescription();
             String salt = String.valueOf(System.currentTimeMillis());
             Map<String, String> params = new HashMap<>();
