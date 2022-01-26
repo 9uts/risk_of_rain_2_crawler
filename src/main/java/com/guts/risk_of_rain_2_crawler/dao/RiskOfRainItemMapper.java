@@ -1,19 +1,12 @@
 package com.guts.risk_of_rain_2_crawler.dao;
 
-import com.alibaba.fastjson.JSON;
-import com.alibaba.fastjson.JSONArray;
-import com.alibaba.fastjson.JSONObject;
 import com.guts.risk_of_rain_2_crawler.entity.RiskOfRainItem;
+import com.guts.risk_of_rain_2_crawler.entity.RiskOfRainItem.RoRField;
 import com.guts.risk_of_rain_2_crawler.util.HttpUtil;
 import com.guts.risk_of_rain_2_crawler.util.HttpUtil.RiskOfRainUrl;
-import com.guts.risk_of_rain_2_crawler.util.HttpUtil.TranslateUrl;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.util.HashMap;
+import com.guts.risk_of_rain_2_crawler.util.TranslateUtil;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
 import java.util.regex.Pattern;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
@@ -40,13 +33,13 @@ public class RiskOfRainItemMapper {
     private MongoTemplate rorTemplate;
 
     public List<RiskOfRainItem> getFullItemsFromWiki() {
-        String moeItemsHtml = HttpUtil.httpGet(RiskOfRainUrl.ITEM_LIST_URL);
-        if (moeItemsHtml.isEmpty()) {
+        String wikiHtml = HttpUtil.httpGet(RiskOfRainUrl.ITEM_LIST_URL);
+        if (wikiHtml.isEmpty()) {
             LOGGER.info("Risk of rain items pages missing");
             return new LinkedList<>();
         }
         List<RiskOfRainItem> items = new LinkedList<>();
-        Document doc = Jsoup.parse(moeItemsHtml);
+        Document doc = Jsoup.parse(wikiHtml);
         Elements tables = doc.getElementsByClass("article-table sortable firstcolumn-center-nowrap floatheader");
         if (tables.isEmpty()) {
             LOGGER.info("Table is Blank");
@@ -63,8 +56,9 @@ public class RiskOfRainItemMapper {
         return items;
     }
 
-    public void updateItem(RiskOfRainItem item) {
-        LOGGER.info("Update {}", rorTemplate.save(item, ROR_COLLECTION));
+    public RiskOfRainItem updateItem(RiskOfRainItem item) {
+        LOGGER.info("Update item {}", item);
+        return rorTemplate.save(item, ROR_COLLECTION);
     }
 
     public List<RiskOfRainItem> updateAllItem(List<RiskOfRainItem> items) {
@@ -82,9 +76,14 @@ public class RiskOfRainItemMapper {
         return item;
     }
 
-    public List<RiskOfRainItem> selectByIdIfContains(String id) {
-        Pattern pattern = Pattern.compile("^.*" + id + ".*$", Pattern.CASE_INSENSITIVE);
-        Query query = new Query(Criteria.where("_id").regex(pattern));
+    public List<RiskOfRainItem> findAll() {
+        LOGGER.info("Select all items from database.");
+        return rorTemplate.findAll(RiskOfRainItem.class, ROR_COLLECTION);
+    }
+
+    public List<RiskOfRainItem> searchByKeyVal(RoRField field, String val) {
+        Pattern pattern = Pattern.compile("^.*" + val + ".*$");
+        Query query = new Query(Criteria.where(field.getField()).regex(pattern));
         List<RiskOfRainItem> items = rorTemplate.find(query, RiskOfRainItem.class, ROR_COLLECTION);
         LOGGER.info("Find {} item(s)", items.size());
         if (items.size() < 10) {
@@ -101,70 +100,18 @@ public class RiskOfRainItemMapper {
         });
     }
 
-    public static void main(String[] args) {
-        RiskOfRainItemMapper rorMapper = new RiskOfRainItemMapper();
-        rorMapper.translateEachItem(rorMapper.getFullItemsFromWiki());
-    }
-
-    public void translateEachItem(List<RiskOfRainItem> items) {
+    private void translateEachItem(List<RiskOfRainItem> items) {
         items.forEach(item -> {
             RiskOfRainItem itemInGameDb = rorTemplate.findById(item.getName(), RiskOfRainItem.class, ROR_COLLECTION);
-            if ( itemInGameDb == null || itemInGameDb.getDescriptionCh() == null || itemInGameDb.getDescriptionCh().length() == 0) {
-                return;
-            }
-            String q = item.getDescription();
-            String salt = String.valueOf(System.currentTimeMillis());
-            Map<String, String> params = new HashMap<>();
-            params.put("from", "EN");
-            params.put("to", "CH");
-            params.put("signType", "v3");
-            String curtime = String.valueOf(System.currentTimeMillis() / 1000);
-            params.put("curtime", curtime);
-            String signStr = TranslateUrl.APP_ID + truncate(q) + salt + curtime + TranslateUrl.APP_SECRET;
-            String sign = getDigest(signStr);
-            params.put("appKey", TranslateUrl.APP_ID);
-            params.put("q", q);
-            params.put("salt", salt);
-            params.put("sign", sign);
-            JSONObject responseBody = JSON.parseObject(HttpUtil.httpPost(TranslateUrl.TRANSLATE_URL, params));
-            JSONArray translationArray = responseBody.getJSONArray("translation");
-            if (translationArray.size() == 1) {
-                item.setDescriptionCh(translationArray.getString(0));
-                LOGGER.info("Translate {} success, chinese description: {}", item.getName(), item.getDescriptionCh());
-            } else {
-                LOGGER.info("Translate {} error: {}", item.getName(), item.getDescription());
+            if (itemInGameDb != null) {
+                if (itemInGameDb.getChDescription() == null || itemInGameDb.getChDescription().length() == 0) {
+                    item.setChDescription(TranslateUtil.translate(item.getDescription()));
+                } else {
+                    item.setChDescription(itemInGameDb.getChDescription());
+                    LOGGER.info("Item {} is already translated", itemInGameDb.getName());
+                }
+                item.setChName(itemInGameDb.getChName());
             }
         });
-    }
-
-    private static String truncate(String q) {
-        if (q == null) {
-            return null;
-        }
-        int len = q.length();
-        return len <= 20 ? q : (q.substring(0, 10) + len + q.substring(len - 10, len));
-    }
-
-    private static String getDigest(String string) {
-        if (string == null) {
-            return null;
-        }
-        char[] hexDigits = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'};
-        byte[] btInput = string.getBytes(StandardCharsets.UTF_8);
-        try {
-            MessageDigest mdInst = MessageDigest.getInstance("SHA-256");
-            mdInst.update(btInput);
-            byte[] md = mdInst.digest();
-            int j = md.length;
-            char[] str = new char[j * 2];
-            int k = 0;
-            for (byte byte0 : md) {
-                str[k++] = hexDigits[byte0 >>> 4 & 0xf];
-                str[k++] = hexDigits[byte0 & 0xf];
-            }
-            return new String(str);
-        } catch (NoSuchAlgorithmException e) {
-            return null;
-        }
     }
 }

@@ -14,11 +14,30 @@ import org.springframework.data.annotation.Id;
 public class RiskOfRainItem {
     @Id
     private final String name;
+    private String chName;
     private final String description;
-    private String descriptionCh;
+    private String chDescription;
 
     public RiskOfRainItem(String name, String description) {
         this.name = name;
         this.description = description;
+    }
+
+    public enum RoRField {
+        NAME("_id"),
+        CH_NAME("chName"),
+        DESCRIPTION("description"),
+        CH_DESCRIPTION("chDescription");
+
+
+        private final String field;
+
+        RoRField(String field) {
+            this.field = field;
+        }
+
+        public String getField() {
+            return field;
+        }
     }
 }
